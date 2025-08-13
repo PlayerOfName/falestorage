@@ -1,0 +1,30 @@
+minio:
+  endpoint: ${MINIOURL}
+  accessKey: ${MINIOLOGIN}
+  secretKey: ${MINIOTOKEN}
+  bucket: ${MINIOBUCKET}
+
+api:
+  photos:
+    max-per-product: 10
+    max-file-size-mb: 5
+    allowed-content-types:
+      - image/jpeg
+      - image/png
+      - image/webp
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  jpa:
+    enabled: false
+  data:
+    jpa:
+      repositories:
+        enabled: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+server:
+  port: 9090
