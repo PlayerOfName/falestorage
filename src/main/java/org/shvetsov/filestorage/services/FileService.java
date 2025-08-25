@@ -2,6 +2,7 @@ package org.shvetsov.filestorage.services;
 
 import io.minio.*;
 import io.minio.messages.Item;
+import jakarta.validation.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.FileNameUtils;
@@ -35,6 +36,7 @@ public class FileService {
     private final StorageProperties properties;
 
     public ProductPhotoRS uploadProductPhoto(UUID productId, UUID fileId, MultipartFile file) {
+        if (!file.getContentType().startsWith("image/")) throw new ValidationException("Only images allowed");
         // 2. Генерация уникального имени файла
         String objectName = storageService.generateObjectName(productId, fileId, file.getOriginalFilename());
 
