@@ -6,12 +6,17 @@ import io.minio.messages.Item;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.shvetsov.filestorage.configurations.StorageProperties;
+import org.shvetsov.storage.StorageException;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import io.minio.http.Method;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -88,7 +93,7 @@ public class StorageService {
     }
 
     // 6. Проверка существования файла
-    public boolean fileExists(String objectName) throws Exception {
+    public boolean fileExists(String objectName) {
         try {
             minioClient.statObject(
                     StatObjectArgs.builder()
@@ -100,28 +105,72 @@ public class StorageService {
             if (e.errorResponse().code().equals("NoSuchKey")) {
                 return false;
             }
-            throw e;
+            log.error("Error checking file existence: {}", objectName, e);
+            throw new StorageException("Error checking file existence: " + objectName);
+        } catch (Exception e) {
+            log.error("Unexpected error checking file existence: {}", objectName, e);
+            throw new StorageException("Unexpected error checking file existence: " + objectName);
         }
     }
 
     // 7. Получение метаданных файла
-    public StatObjectResponse getFileMetadata(String objectName) throws Exception {
-        return minioClient.statObject(
-                StatObjectArgs.builder()
+    public StatObjectResponse getFileMetadata(String objectName) {
+        try {
+            return minioClient.statObject(
+                    StatObjectArgs.builder()
+                            .bucket(properties.getBucket())
+                            .object(objectName)
+                            .build());
+        } catch (Exception e) {
+            log.error("Failed to get file metadata: {}", objectName, e);
+            throw new StorageException("Failed to get file metadata: " + objectName);
+        }
+    }
+
+    public String generateObjectName(UUID productId, UUID fileId, String originalFilename) {
+        // Получаем расширение файла
+        String extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+
+        // Формируем путь в формате: {productId}/{fileId}{extension}
+        return String.format("%s/%s%s",
+                productId.toString(),
+                fileId.toString(),
+                extension);
+    }
+
+    // 8. Получение файла как InputStream (для потоковой передачи)
+    public InputStream getFileAsStream(String objectName) throws Exception {
+        return minioClient.getObject(
+                GetObjectArgs.builder()
                         .bucket(properties.getBucket())
                         .object(objectName)
                         .build());
     }
 
-    public String generateObjectName(UUID productId, UUID userId, UUID fileId, String originalFilename) {
-        // Получаем расширение файла
-        String extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+    // 9. Получение файла как Resource (для контроллеров)
+    public Resource getFileAsResource(String objectName) {
+        try {
+            InputStream stream = minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(properties.getBucket())
+                            .object(objectName)
+                            .build());
 
-        // Формируем путь в формате: {productId}/{userId}/{fileId}{extension}
-        return String.format("%s/%s/%s%s",
-                productId.toString(),
-                userId.toString(),
-                fileId.toString(),
-                extension);
+            return new InputStreamResource(stream) {
+                @Override
+                public String getFilename() {
+                    return objectName;
+                }
+
+                @Override
+                public long contentLength() throws IOException {
+                    return getFileMetadata(objectName).size();
+                }
+            };
+
+        } catch (Exception e) {
+            log.error("Failed to get file as resource: {}", objectName, e);
+            throw new StorageException("Failed to get file: " + objectName);
+        }
     }
 }

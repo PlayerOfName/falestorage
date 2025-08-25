@@ -3,6 +3,9 @@ minio:
   accessKey: ${MINIOLOGIN}
   secretKey: ${MINIOTOKEN}
   bucket: ${MINIOBUCKET}
+  connect-timeout: 30000
+  write-timeout: 30000
+  read-timeout: 30000
 
 api:
   photos:
