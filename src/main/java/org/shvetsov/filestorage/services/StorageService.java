@@ -102,7 +102,7 @@ public class StorageService {
                             .build());
             return true;
         } catch (ErrorResponseException e) {
-            if (e.errorResponse().code().equals("NoSuchKey")) {
+            if (e.errorResponse() != null && "NoSuchKey".equals(e.errorResponse().code())) {
                 return false;
             }
             log.error("Error checking file existence: {}", objectName, e);

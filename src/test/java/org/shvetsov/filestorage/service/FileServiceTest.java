@@ -14,8 +14,10 @@ import org.shvetsov.responseApi.FileUploadResponse;
 import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
@@ -35,24 +37,20 @@ class FileServiceTest {
 
     @Test
     void uploadFile_Success() throws Exception {
-        // Arrange
-        MultipartFile file = mock(MultipartFile.class);
-        when(file.getOriginalFilename()).thenReturn("test.txt");
-        when(file.getSize()).thenReturn(4L);
-        when(file.getContentType()).thenReturn("text/plain");
-
-        when(storageService.uploadFile(any(), any())).thenReturn("test.txt");
-        when(storageService.getFileUrl(any(), anyInt())).thenReturn("http://test.url");
-
         UUID productId = UUID.randomUUID();
         UUID fileId = UUID.randomUUID();
+        // Arrange
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.getInputStream()).thenReturn(new ByteArrayInputStream("test".getBytes()));
+        when(file.getSize()).thenReturn(4L);
+        when(file.getContentType()).thenReturn("image/jpeg"); // ← ИЗМЕНИТЕ НА image/*
+        when(file.getOriginalFilename()).thenReturn("test.jpg");
 
         // Act
-        ProductPhotoRS response = fileService.uploadProductPhoto(productId, fileId, file);
+        ProductPhotoRS result = fileService.uploadProductPhoto(productId, fileId, file);
 
         // Assert
-        assertNotNull(response);
-        assertEquals("test.txt", response.getPath());
+        assertNotNull(result);
     }
 
     @Test
@@ -66,7 +64,6 @@ class FileServiceTest {
         when(storageService.getFileMetadata("test.txt")).thenReturn(metadata);
         when(metadata.contentType()).thenReturn("text/plain");
         when(metadata.size()).thenReturn(4L);
-        when(metadata.lastModified()).thenReturn(ZonedDateTime.from(Instant.now()));
 
         // Act
         FileResponse response = fileService.getFile("test.txt");

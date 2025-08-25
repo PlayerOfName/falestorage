@@ -2,6 +2,7 @@ package org.shvetsov.filestorage.service;
 
 import io.minio.*;
 import io.minio.errors.ErrorResponseException;
+import io.minio.messages.ErrorResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,12 +13,12 @@ import org.shvetsov.filestorage.configurations.StorageProperties;
 import org.shvetsov.filestorage.services.StorageService;
 import org.shvetsov.storage.StorageException;
 import org.springframework.core.io.Resource;
-import org.springframework.web.ErrorResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,14 +58,8 @@ class StorageServiceTest {
     void getFileAsResource_Success() throws Exception {
         // Arrange
         GetObjectResponse getObjectResponse = mock(GetObjectResponse.class);
-
         when(minioClient.getObject(any(GetObjectArgs.class)))
                 .thenReturn(getObjectResponse);
-
-        StatObjectResponse statResponse = mock(StatObjectResponse.class);
-        when(statResponse.size()).thenReturn(4L);
-        when(minioClient.statObject(any(StatObjectArgs.class)))
-                .thenReturn(statResponse);
 
         // Act
         Resource resource = storageService.getFileAsResource("test.txt");
@@ -90,13 +85,14 @@ class StorageServiceTest {
     @Test
     void fileExists_WhenFileNotExists_ReturnsFalse() throws Exception {
         // Arrange
-        ErrorResponseException errorResponse = mock(ErrorResponseException.class);
-        ErrorResponse error = mock(ErrorResponse.class);
-        when(error.getDetailMessageCode()).thenReturn("NoSuchKey");
-        when(errorResponse.errorResponse()).thenReturn((io.minio.messages.ErrorResponse) error);
+        ErrorResponseException errorResponseException = mock(ErrorResponseException.class);
+        ErrorResponse errorResponse = mock(ErrorResponse.class);
+
+        when(errorResponse.code()).thenReturn("NoSuchKey");
+        when(errorResponseException.errorResponse()).thenReturn(errorResponse);
 
         when(minioClient.statObject(any(StatObjectArgs.class)))
-                .thenThrow(errorResponse);
+                .thenThrow(errorResponseException);
 
         // Act
         boolean exists = storageService.fileExists("test.txt");
@@ -108,13 +104,37 @@ class StorageServiceTest {
     @Test
     void fileExists_WhenOtherError_ThrowsException() throws Exception {
         // Arrange
-        ErrorResponseException errorResponse = mock(ErrorResponseException.class);
-        ErrorResponse error = mock(ErrorResponse.class);
-        when(error.getDetailMessageCode()).thenReturn("AccessDenied");
-        when(error.getDetailMessageCode()).thenReturn("AccessDenied");
+        ErrorResponseException errorResponseException = mock(ErrorResponseException.class);
+        ErrorResponse errorResponse = mock(ErrorResponse.class);
+
+        when(errorResponse.code()).thenReturn("AccessDenied");
+        when(errorResponseException.errorResponse()).thenReturn(errorResponse);
 
         when(minioClient.statObject(any(StatObjectArgs.class)))
-                .thenThrow(errorResponse);
+                .thenThrow(errorResponseException);
+
+        // Act & Assert
+        assertThrows(StorageException.class, () -> storageService.fileExists("test.txt"));
+    }
+
+    @Test
+    void fileExists_WhenErrorResponseIsNull_ThrowsException() throws Exception {
+        // Arrange
+        ErrorResponseException errorResponseException = mock(ErrorResponseException.class);
+        when(errorResponseException.errorResponse()).thenReturn(null);
+
+        when(minioClient.statObject(any(StatObjectArgs.class)))
+                .thenThrow(errorResponseException);
+
+        // Act & Assert
+        assertThrows(StorageException.class, () -> storageService.fileExists("test.txt"));
+    }
+
+    @Test
+    void fileExists_WhenGenericException_ThrowsStorageException() throws Exception {
+        // Arrange
+        when(minioClient.statObject(any(StatObjectArgs.class)))
+                .thenThrow(new RuntimeException("Generic error"));
 
         // Act & Assert
         assertThrows(StorageException.class, () -> storageService.fileExists("test.txt"));
